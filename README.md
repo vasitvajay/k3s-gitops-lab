@@ -1,64 +1,129 @@
 # k3s-gitops-lab
 
-A local Kubernetes GitOps lab demonstrating automated application deployment, declarative infrastructure configuration, and end-to-end observability using k3s, Argo CD, Prometheus, Loki, Tempo, Grafana, and Grafana Alloy.
+A local Kubernetes GitOps lab demonstrating automated application
+delivery and end-to-end observability. The project deploys the NOVA
+Store sample API to a local k3d/k3s cluster, uses Argo CD to reconcile
+Kubernetes resources from Git, and collects metrics, logs, and traces
+using Prometheus, Grafana Alloy, Loki, Tempo, and Grafana.
+
+The lab is designed for a repeatable local assessment environment. It is
+not intended to be a production-ready Kubernetes platform.
+
+## Table of contents
+
+-   [Architecture](#architecture)
+-   [Technology stack](#technology-stack)
+-   [Repository structure](#repository-structure)
+-   [Prerequisites](#prerequisites)
+-   [Quick start](#quick-start)
+-   [Bootstrap behavior](#bootstrap-behavior)
+-   [GitOps workflow](#gitops-workflow)
+-   [Access the application and observability
+    tools](#access-the-application-and-observability-tools)
+-   [Validate telemetry](#validate-telemetry)
+-   [NOVA Store API](#nova-store-api)
+-   [Troubleshooting](#troubleshooting)
+-   [Cleanup](#cleanup)
+-   [Security and limitations](#security-and-limitations)
+-   [Documentation](#documentation)
 
 ## Architecture
 
-```text
-Developer
-   |
-   v
-GitHub Repository (main)
-   |
-   v
-Argo CD — GitOps Reconciliation
-   |
-   +----------------------+----------------------+
-   |                      |                      |
-   v                      v                      v
-  NOVA Store          Prometheus Stack      Logging Stack
-  FastAPI API         Prometheus             Alloy -> Loki
-   |                      |                      |
-   +----------------------+----------------------+
-                          |
-                          v
-                        Grafana
-                          ^
-                          |
-                    Tempo Traces
-                NOVA API -> Alloy -> Tempo
+``` text
+                         GitHub: main
+                              |
+                              v
+                      Argo CD root Application
+                              |
+                  discovers gitops/apps recursively
+                              |
+             +----------------+----------------+
+             |                                 |
+             v                                 v
+      NOVA Store API                    Observability apps
+      FastAPI / Python                  Helm-managed resources
+             |                                 |
+      +------+----------------+----------------+
+      |                       |                |
+      | /metrics              | JSON stdout    | OTLP/HTTP
+      v                       v                v
+  Prometheus                Alloy <---------- NOVA Store
+                                |                |
+                                v                |
+                              Loki               |
+                                                 |
+                                Alloy ----------+
+                                  |
+                                  | OTLP/gRPC
+                                  v
+                                Tempo
+
+                  Grafana queries Prometheus, Loki, and Tempo
 ```
 
-### Technology stack
+### Telemetry flow
 
-| Component | Purpose |
-|---|---|
-| Docker Desktop | Local container runtime using WSL2 |
-| k3d / k3s | Local Kubernetes cluster |
-| Argo CD | GitOps-based application delivery and reconciliation |
-| Helm | Installation and configuration of observability components |
-| FastAPI | Sample NOVA Store API |
-| Prometheus | Application and Kubernetes metrics collection |
-| Grafana Alloy | Telemetry collection and forwarding |
-| Loki | Centralized log storage and querying |
-| Tempo | Distributed trace storage and querying |
-| Grafana | Observability dashboards and exploration |
+-   **Metrics:** Prometheus scrapes the API's `/metrics` endpoint every
+    15 seconds.
+-   **Logs:** The API writes structured JSON events to standard output.
+    Grafana Alloy discovers Kubernetes pod logs and forwards them to
+    Loki.
+-   **Traces:** The API uses OpenTelemetry instrumentation and sends
+    telemetry to Alloy over OTLP/HTTP. Alloy forwards traces to Tempo.
+-   **Exploration:** Grafana is provisioned with Prometheus, Loki, and
+    Tempo data sources.
+
+## Technology stack
+
+  Component                   Purpose
+  --------------------------- ----------------------------------------
+  Docker Desktop with WSL 2   Local container runtime
+  k3d / k3s                   Local Kubernetes cluster
+  kubectl                     Kubernetes command-line administration
+  Helm                        Chart packaging and configuration
+  Argo CD                     GitOps reconciliation and deployment
+  FastAPI                     NOVA Store sample API
+  Prometheus                  Metrics collection and querying
+  Grafana Alloy               Telemetry collection and forwarding
+  Loki                        Log storage and querying
+  Tempo                       Distributed trace storage and querying
+  Grafana                     Metrics, logs, and trace exploration
 
 ## Repository structure
 
-```text
-.
+``` text
+k3s-gitops-lab/
+├── README.md
+├── docs/
+│   ├── ai-interaction-log.md
+│   ├── api-docs.md
+│   ├── bootstrap-guide.md
+│   └── observability-stack.md
 ├── apps/
 │   └── sample-api/
 │       ├── app/
+│       │   ├── main.py
+│       │   └── static/
 │       ├── k8s/
-│       └── Dockerfile
+│       │   ├── deployment.yaml
+│       │   └── service.yaml
+│       ├── Dockerfile
+│       └── requirements.txt
 ├── bootstrap/
-│   └── bootstrap.ps1
+│   ├── bootstrap.ps1
+│   └── install-argocd.ps1
 ├── gitops/
 │   ├── root-app.yaml
 │   └── apps/
+│       ├── sample-api.yaml
+│       └── observability.yaml
 └── observability/
+    ├── k8s/
+    │   ├── alloy.yaml
+    │   ├── grafana.yaml
+    │   ├── loki.yaml
+    │   ├── prometheus.yaml
+    │   └── tempo.yaml
     └── values/
         ├── alloy.yaml
         ├── grafana.yaml
@@ -69,224 +134,383 @@ Argo CD — GitOps Reconciliation
 
 ## Prerequisites
 
-The bootstrap workflow is designed for Windows with PowerShell and Docker Desktop using WSL2.
+The bootstrap workflow is intended for Windows with PowerShell and
+Docker Desktop using the WSL 2 backend.
 
-Install and configure:
+Install and verify:
 
-- Docker Desktop, with its engine running.
-- PowerShell.
-- Git.
-- k3d.
-- kubectl.
-- Helm.
+-   Docker Desktop, with its Linux container engine running.
+-   Git for Windows.
+-   k3d.
+-   kubectl.
+-   Helm.
+-   PowerShell.
 
-Ensure Docker has sufficient CPU, memory, and disk capacity for the Kubernetes cluster and observability workloads.
+The environment used during development included Windows 10 Home 64-bit,
+Docker Desktop 29.8.2, WSL 2.5.10.0, Git 2.50.1, k3d v5.9.0, kubectl
+v1.36.1, and Helm v4.3.0. These are the versions used during validation,
+not necessarily strict minimum-version requirements.
 
-## Getting started
+Run the following in PowerShell:
 
-Clone the repository:
+PS : { docker info docker version git --version k3d version kubectl
+version --client helm version kubectl config get-contexts k3d cluster
+list }
 
-```powershell
-git clone https://github.com/vasitvajay/k3s-gitops-lab.git
-Set-Location k3s-gitops-lab
-```
+Docker must be available before the bootstrap script is run. Allocate
+enough CPU, memory, and disk capacity for Kubernetes, Argo CD, the
+application, and observability workloads.
 
-Run the bootstrap script:
+## Quick start
 
-```powershell
-.\bootstrap\bootstrap.ps1
-```
+### 1. Clone the repository
 
-The script automates local cluster setup, application image preparation, Argo CD installation, Grafana credential provisioning, and submission of the root GitOps Application.
+PS : { git clone https://github.com/vasitvajay/k3s-gitops-lab.git
+Set-Location .`\k3`{=tex}s-gitops-lab }
 
-The root Application discovers child applications under `gitops/apps`. Argo CD then reconciles their desired state from Git.
+Verify the expected files:
 
-The bootstrap script is intended to support reruns. Review its output for errors before proceeding.
+PS : { Test-Path .`\bootstrap`{=tex}`\bootstrap`{=tex}.ps1 Test-Path
+.`\bootstrap`{=tex}`\install`{=tex}-argocd.ps1 Test-Path
+.`\apps`{=tex}`\sample`{=tex}-api`\Dockerfile`{=tex} Test-Path
+.`\gitops`{=tex}`\root`{=tex}-app.yaml }
 
-## Verify the deployment
+Each command should return `True`.
 
-### 1. Kubernetes resources
+### 2. Run the bootstrap script
 
-```powershell
-kubectl get nodes
-kubectl get applications -n argocd
-kubectl get pods -A
-```
+The default configuration uses cluster name `devops-assessment` and host
+port mapping `8080:80@loadbalancer`.
 
-Confirm that the node is Ready, the Argo CD Applications are Synced and Healthy, and application and observability pods are Running or otherwise in their expected healthy state.
+PS : { powershell.exe -NoProfile -ExecutionPolicy Bypass \` -File
+".`\bootstrap`{=tex}`\bootstrap`{=tex}.ps1" }
 
-### 2. NOVA Store API
+The execution-policy bypass applies only to that PowerShell process. If
+your current PowerShell policy already permits the script, you can run
+it directly:
 
-Check the application service:
+PS : { .`\bootstrap`{=tex}`\bootstrap`{=tex}.ps1 }
 
-```powershell
-kubectl get svc -n sample-api
-kubectl port-forward -n sample-api svc/nova-store 8000:80
-```
+### 3. Use a separate cluster for isolated testing
 
-Keep the port-forward terminal open. In another PowerShell terminal, test the endpoints:
+If you want to keep an existing cluster untouched, select a separate
+cluster name and host port:
 
-```powershell
-Invoke-RestMethod http://localhost:8000/api/health
-Invoke-RestMethod http://localhost:8000/api/products
-Invoke-WebRequest -UseBasicParsing http://localhost:8000/metrics
-```
+PS : { powershell.exe -NoProfile -ExecutionPolicy Bypass
+`-File ".\bootstrap\bootstrap.ps1"` -ClusterName
+"devops-assessment-fresh" \` -HttpPortMapping "8081:80@loadbalancer" }
 
-Interactive API documentation is available at:
+The script can reuse an existing cluster with the supplied name. It does
+not delete or recreate that cluster automatically. An existing cluster's
+port mapping is not changed by rerunning the script.
 
-- Swagger UI: `http://localhost:8000/docs`
-- OpenAPI schema: `http://localhost:8000/openapi.json`
+### 4. Wait for GitOps reconciliation
 
-The application exposes health, product, category, order, and Prometheus metrics endpoints.
+Bootstrap submits the root Argo CD Application. Child Applications and
+workloads may need additional time to become healthy.
 
-### 3. Grafana
+PS : { kubectl config current-context kubectl get nodes -o wide kubectl
+get applications.argoproj.io -n argocd kubectl get pods -n argocd
+kubectl get pods -n sample-api kubectl get pods -n observability kubectl
+get pvc -n observability }
 
-Forward the Grafana service:
+The expected Kubernetes context is `k3d-devops-assessment` for the
+default cluster, or `k3d-<ClusterName>` for a custom cluster.
+Applications should eventually report `Synced` and `Healthy`, and
+workloads should reach their expected ready state.
 
-```powershell
-kubectl port-forward -n observability svc/grafana 3000:80
-```
+## Bootstrap behavior
 
-Open `http://localhost:3000`.
+The bootstrap scripts automate the initial environment setup:
 
-Retrieve the provisioned administrator password:
+1.  Check required commands and Docker availability.
+2.  Create the configured k3d cluster if it does not exist, or reuse it
+    if it does.
+3.  Select and verify the matching Kubernetes context.
+4.  Wait for the Kubernetes node to become ready.
+5.  Build the `nova-store:dev` container image.
+6.  Import the image into the selected k3d cluster.
+7.  Install the pinned Argo CD release and wait for key components.
+8.  Ensure the observability namespace exists.
+9.  Create the `grafana-admin` Secret only if it does not already exist.
+10. Apply `gitops/root-app.yaml` and wait for the root Application to be
+    registered.
 
-```powershell
-$Password = kubectl get secret grafana-admin -n observability -o jsonpath="{.data.admin-password}"
-[System.Text.Encoding]::UTF8.GetString(
-    [Convert]::FromBase64String($Password)
-)
-```
+The NOVA Store Deployment uses `imagePullPolicy: Never`, so the locally
+built image must be imported into the same k3d cluster that runs the
+workload.
 
-Use the provisioned administrator username and the retrieved password to sign in. Keep credentials out of source control.
-
-### 4. Prometheus
-
-Forward the Prometheus service:
-
-```powershell
-kubectl port-forward -n observability svc/prometheus-server 9090:80
-```
-
-Open `http://localhost:9090` and query:
-
-```promql
-up
-```
-
-Check application request metrics:
-
-```promql
-nova_http_requests_total
-```
-
-Generate API requests before querying if you need fresh traffic.
-
-### 5. Loki logs
-
-Use Grafana Explore and select the Loki data source.
-
-A basic LogQL query is:
-
-```logql
-{namespace="sample-api"}
-```
-
-If your labels differ, inspect the available labels in Grafana Explore and adapt the query.
-
-### 6. Tempo traces
-
-Use Grafana Explore and select Tempo. Search for traces from the `nova-api` service and open a trace to inspect its spans and timing.
-
-Generate traffic against the API while testing. The application sends OpenTelemetry data through Alloy to Tempo.
-
-The provisioned data sources are configured through `observability/values/grafana.yaml`.
+The bootstrap script's success message means the root Application has
+been registered. It does not guarantee that every child Application has
+already finished reconciling.
 
 ## GitOps workflow
 
-1. Modify application manifests, Helm values, or the root/child Application configuration.
-2. Commit and push the changes to the tracked Git branch.
-3. Allow Argo CD to detect the desired-state changes.
-4. Verify synchronization and health:
+The root Application in `gitops/root-app.yaml` tracks the `main` branch
+of this repository and recursively watches `gitops/apps`.
 
-```powershell
-kubectl get applications -n argocd
-kubectl get pods -A
-```
+The child Applications manage the sample API and observability
+components, including Alloy, Grafana, Loki, Prometheus, and Tempo. The
+observability Application definitions in `observability/k8s/` use
+version-pinned Helm charts and values files under
+`observability/values/`.
 
-The root Application uses automated synchronization with pruning and self-healing. Review changes carefully because pruning can remove resources no longer declared in Git.
+Automated synchronization, pruning, and self-healing are enabled.
+Pruning can remove resources that are no longer declared in Git, so
+review manifest changes carefully.
+
+**Important:** Argo CD reconciles the remote Git revision configured in
+the Application. Local changes that have not been pushed to the tracked
+branch are not automatically deployed. The local image build/import is
+also separate from manifest synchronization.
+
+After bootstrap, use Git to change the desired state. Do not manually
+apply application or observability manifests as a substitute for GitOps
+reconciliation.
+
+## Access the application and observability tools
+
+Use `kubectl port-forward` to access services locally. Each port-forward
+command should run in its own PowerShell terminal and remain running
+while you use that service.
+
+### Port mapping versus port-forwarding
+
+The k3d host port mapping configured during cluster creation exposes a
+port on the k3d load balancer. For example, `8081:80@loadbalancer` maps
+host port 8081 to port 80 on the k3d load-balancer container. Access
+through that path depends on the configured ingress and routing
+resources.
+
+`kubectl port-forward` creates a temporary connection to a specified
+Kubernetes Service or Pod. It does not require ingress routing and ends
+when the command stops.
+
+### NOVA Store API
+
+PS : { kubectl port-forward -n sample-api svc/nova-store 18000:80 }
+
+Open:
+
+-   Storefront: http://127.0.0.1:18000
+-   Health endpoint: http://127.0.0.1:18000/api/health
+-   Interactive API documentation: http://127.0.0.1:18000/docs
+
+Test the API in a second terminal:
+
+PS : { Invoke-RestMethod "http://127.0.0.1:18000/api/health"
+Invoke-RestMethod "http://127.0.0.1:18000/api/categories"
+Invoke-RestMethod "http://127.0.0.1:18000/api/products" }
+
+Expected health response:
+
+JSON : { { "status": "healthy", "service": "nova-api" } }
+
+### Grafana
+
+PS : { kubectl port-forward -n observability svc/grafana 13000:80 }
+
+Open http://127.0.0.1:13000. The administrator username is `admin`.
+
+Retrieve the provisioned password without committing it to Git:
+
+PS : { \$Password = kubectl get secret grafana-admin \` -n observability
+-o jsonpath="{.data.admin-password}"
+
+if (\$LASTEXITCODE -ne 0 -or -not \$Password) { throw "Unable to
+retrieve the Grafana admin password." }
+
+    [Convert]::FromBase64String($Password)
+
+) }
+
+Treat the password as a secret. Do not include it in logs,
+documentation, screenshots, or commits.
+
+### Prometheus
+
+PS : { kubectl port-forward -n observability svc/prometheus-server
+19090:80 }
+
+Open http://127.0.0.1:19090.
+
+Useful PromQL queries:
+
+PromQL : { up }
+
+PromQL : { nova_http_requests_total }
+
+### Loki
+
+PS : { kubectl port-forward -n observability svc/loki 13100:3100 }
+
+The local endpoint is http://127.0.0.1:13100. The usual workflow is to
+query Loki through Grafana Explore.
+
+### Tempo
+
+PS : { kubectl port-forward -n observability svc/tempo 13200:3200 }
+
+The local endpoint is http://127.0.0.1:13200. Use Grafana Explore to
+search for traces from service `nova-api`.
+
+## Validate telemetry
+
+Generate test traffic while the API port-forward is running:
+
+PS : { 1..10 \| ForEach-Object { Invoke-RestMethod
+"http://127.0.0.1:18000/api/health" }
+
+Invoke-RestMethod \`
+"http://127.0.0.1:18000/api/products?category=Audio" }
+
+Then validate the telemetry:
+
+-   **Metrics:** In Prometheus, query `up` and
+    `nova_http_requests_total`. The API scrape target should be up.
+    Allow at least one 15-second scrape interval for new metrics to
+    appear.
+-   **Logs:** In Grafana Explore, select Loki and run
+    `{namespace="sample-api"}`. Look for JSON request events such as
+    `http_request`.
+-   **Traces:** In Grafana Explore, select Tempo and search for the
+    `nova-api` service. Generate new traffic if no recent traces are
+    available.
+
+The application exposes request counters and request-duration
+histograms, emits structured JSON logs to standard output, and exports
+traces through Alloy to Tempo.
+
+## NOVA Store API
+
+The FastAPI application includes endpoints for health checks,
+categories, products, and orders.
+
+  ------------------------------------------------------------------------------
+  Method                  Endpoint                       Purpose
+  ----------------------- ------------------------------ -----------------------
+  GET                     `/api/health`                  Application health
+
+  GET                     `/api/categories`              List product categories
+
+  GET                     `/api/products`                List products; supports
+                                                         an optional category
+                                                         filter
+
+  GET                     `/api/products/{product_id}`   Retrieve one product
+
+  POST                    `/api/orders`                  Create an in-memory
+                                                         order
+
+  GET                     `/api/orders/{order_id}`       Retrieve an order
+
+  GET                     `/metrics`                     Prometheus metrics
+
+  GET                     `/docs`                        Interactive OpenAPI
+                                                         documentation
+  ------------------------------------------------------------------------------
+
+Orders are stored in application memory and are not persistent across
+restarts. Invalid request bodies can return `422`; unknown products and
+orders return `404`.
+
+For full request/response examples and error cases, see [API
+Documentation](docs/api-docs.md).
 
 ## Troubleshooting
 
-### Application is unavailable
+### Docker is unavailable
 
-```powershell
-kubectl get pods -n sample-api
-kubectl get svc -n sample-api
-kubectl logs -n sample-api deployment/nova-store
-kubectl describe pods -n sample-api
-```
+Start Docker Desktop, wait for the Linux container engine to become
+ready, and run `docker info` again.
 
-Use the actual deployment or pod name if it differs.
+### The wrong cluster is selected
+
+PS : { kubectl config current-context kubectl config get-contexts k3d
+cluster list }
+
+Confirm that the active context matches the cluster passed to the
+bootstrap script.
+
+### The API cannot find its image
+
+PS : { kubectl get pods -n sample-api kubectl describe deployment
+nova-store -n sample-api }
+
+Verify that `nova-store:dev` was built and imported into the same k3d
+cluster selected by kubectl.
 
 ### An Argo CD Application is not healthy
 
-```powershell
-kubectl get applications -n argocd
-kubectl describe application sample-api -n argocd
-kubectl describe application observability -n argocd
-```
+PS : { kubectl get applications.argoproj.io -n argocd kubectl get pods
+-A kubectl get events -A --sort-by=.metadata.creationTimestamp }
 
-Check synchronization errors, Helm rendering failures, missing resources, and pod events.
+Inspect Application status, pod events, failed probes, image errors,
+storage provisioning, and Helm reconciliation errors.
 
-### Metrics are missing
+### Port-forwarding fails
 
-```powershell
-kubectl get svc -n observability
-kubectl get pods -n observability
-```
+PS : { kubectl get svc -n sample-api kubectl get endpoints -n sample-api
+kubectl get pods -n sample-api kubectl get svc -n observability }
 
-Verify the application's `/metrics` endpoint, Prometheus targets, and the scrape configuration.
+Check that the Service exists, its endpoints are available, the target
+pod is ready, and the local port is not already occupied. Stop a
+previous port-forward with `Ctrl+C` before restarting it.
 
-### Logs or traces are missing
+### Telemetry is missing
 
-Inspect Alloy and the relevant backend:
+Generate fresh API traffic. Then verify the API and Alloy pods,
+Prometheus target status, Loki and Tempo readiness, Grafana's selected
+data source, and the selected time range.
 
-```powershell
-kubectl get pods -n observability
-kubectl logs -n observability deployment/alloy
-kubectl logs -n observability statefulset/tempo
-kubectl logs -n observability statefulset/loki
-```
-
-If a resource uses a different workload type or name, retrieve its actual name with `kubectl get pods -n observability`.
-
-Check the configured endpoints, receiver ports, labels, and time range in Grafana Explore.
+For more detailed setup and troubleshooting steps, see the [Bootstrap
+Guide](docs/bootstrap-guide.md) and [Observability Stack
+Documentation](docs/observability-stack.md).
 
 ## Cleanup
 
-**Warning:** The following command deletes the local k3d cluster and its workloads.
+**Warning:** Deleting a k3d cluster removes its Kubernetes workloads and
+cluster-local data.
 
-First confirm the cluster name:
+List clusters and verify the exact target before deleting anything:
 
-```powershell
-k3d cluster list
-```
+PS : { k3d cluster list kubectl config get-contexts }
 
-If the cluster is named `devops-assessment`, delete it with:
+If you created a disposable test cluster named `devops-assessment-fresh`
+and no longer need it:
 
-```powershell
-k3d cluster delete devops-assessment
-```
+PS : { k3d cluster delete devops-assessment-fresh }
 
-Review the bootstrap script before using it to recreate the environment.
+Do not run the delete command against `devops-assessment` unless you
+explicitly intend to remove that cluster.
 
-## Security and scope
+## Security and limitations
 
-This project is a local assessment lab, not a production-ready deployment. Production use would require appropriate authentication, TLS, secret management, persistent storage and backup policies, resource sizing, access controls, and operational alerting.
+This is a local assessment lab, not a highly available production
+deployment.
 
-Never commit real credentials or sensitive configuration to Git.
+-   Loki and Tempo use local persistence for this lab; this is not a
+    production-grade storage or disaster-recovery design.
+-   The cluster is local and single-node.
+-   Orders are stored in memory and are not persistent.
+-   Protect the Grafana administrator password and never commit real
+    credentials.
+-   Review Argo CD pruning and self-healing behavior before changing
+    desired-state manifests.
+-   Production use would require appropriate authentication, TLS, secret
+    management, backups, resource sizing, access controls, monitoring,
+    and operational alerting.
 
-## License
+## Documentation
 
-Add the license applicable to this repository if distribution or reuse requires one.
+-   [Bootstrap Guide](docs/bootstrap-guide.md) --- prerequisites,
+    clean-start checklist, configuration, bootstrap execution,
+    verification, port mapping versus port-forwarding, and
+    troubleshooting.
+-   [API Documentation](docs/api-docs.md) --- endpoints,
+    request/response examples, validation, errors, and metrics.
+-   [Observability Stack Documentation](docs/observability-stack.md) ---
+    component versions, telemetry flow, metrics, logs, traces, and
+    verification.
+-   [AI Interaction Log](docs/ai-interaction-log.md) --- curated
+    highlights of AI-assisted implementation, debugging, and validation.
