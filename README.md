@@ -153,9 +153,16 @@ not necessarily strict minimum-version requirements.
 
 Run the following in PowerShell:
 
-PS : { docker info docker version git --version k3d version kubectl
-version --client helm version kubectl config get-contexts k3d cluster
-list }
+``` powershell
+docker info
+docker version
+git --version
+k3d version
+kubectl version --client
+helm version
+kubectl config get-contexts
+k3d cluster list
+```
 
 Docker must be available before the bootstrap script is run. Allocate
 enough CPU, memory, and disk capacity for Kubernetes, Argo CD, the
@@ -165,15 +172,19 @@ application, and observability workloads.
 
 ### 1. Clone the repository
 
-PS : { git clone https://github.com/vasitvajay/k3s-gitops-lab.git
-Set-Location .`\k3`{=tex}s-gitops-lab }
+``` powershell
+git clone https://github.com/vasitvajay/k3s-gitops-lab.git
+Set-Location .\k3s-gitops-lab
+```
 
 Verify the expected files:
 
-PS : { Test-Path .`\bootstrap`{=tex}`\bootstrap`{=tex}.ps1 Test-Path
-.`\bootstrap`{=tex}`\install`{=tex}-argocd.ps1 Test-Path
-.`\apps`{=tex}`\sample`{=tex}-api`\Dockerfile`{=tex} Test-Path
-.`\gitops`{=tex}`\root`{=tex}-app.yaml }
+``` powershell
+Test-Path .\bootstrap\bootstrap.ps1
+Test-Path .\bootstrap\install-argocd.ps1
+Test-Path .\apps\sample-api\Dockerfile
+Test-Path .\gitops\root-app.yaml
+```
 
 Each command should return `True`.
 
@@ -182,23 +193,30 @@ Each command should return `True`.
 The default configuration uses cluster name `devops-assessment` and host
 port mapping `8080:80@loadbalancer`.
 
-PS : { powershell.exe -NoProfile -ExecutionPolicy Bypass \` -File
-".`\bootstrap`{=tex}`\bootstrap`{=tex}.ps1" }
+``` powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+    -File ".\bootstrap\bootstrap.ps1"
+```
 
 The execution-policy bypass applies only to that PowerShell process. If
 your current PowerShell policy already permits the script, you can run
 it directly:
 
-PS : { .`\bootstrap`{=tex}`\bootstrap`{=tex}.ps1 }
+``` powershell
+.\bootstrap\bootstrap.ps1
+```
 
 ### 3. Use a separate cluster for isolated testing
 
 If you want to keep an existing cluster untouched, select a separate
 cluster name and host port:
 
-PS : { powershell.exe -NoProfile -ExecutionPolicy Bypass
-`-File ".\bootstrap\bootstrap.ps1"` -ClusterName
-"devops-assessment-fresh" \` -HttpPortMapping "8081:80@loadbalancer" }
+``` powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+    -File ".\bootstrap\bootstrap.ps1" `
+    -ClusterName "devops-assessment-fresh" `
+    -HttpPortMapping "8081:80@loadbalancer"
+```
 
 The script can reuse an existing cluster with the supplied name. It does
 not delete or recreate that cluster automatically. An existing cluster's
@@ -209,10 +227,15 @@ port mapping is not changed by rerunning the script.
 Bootstrap submits the root Argo CD Application. Child Applications and
 workloads may need additional time to become healthy.
 
-PS : { kubectl config current-context kubectl get nodes -o wide kubectl
-get applications.argoproj.io -n argocd kubectl get pods -n argocd
-kubectl get pods -n sample-api kubectl get pods -n observability kubectl
-get pvc -n observability }
+``` powershell
+kubectl config current-context
+kubectl get nodes -o wide
+kubectl get applications.argoproj.io -n argocd
+kubectl get pods -n argocd
+kubectl get pods -n sample-api
+kubectl get pods -n observability
+kubectl get pvc -n observability
+```
 
 The expected Kubernetes context is `k3d-devops-assessment` for the
 default cluster, or `k3d-<ClusterName>` for a custom cluster.
@@ -288,7 +311,9 @@ when the command stops.
 
 ### NOVA Store API
 
-PS : { kubectl port-forward -n sample-api svc/nova-store 18000:80 }
+``` powershell
+kubectl port-forward -n sample-api svc/nova-store 18000:80
+```
 
 Open:
 
@@ -298,58 +323,79 @@ Open:
 
 Test the API in a second terminal:
 
-PS : { Invoke-RestMethod "http://127.0.0.1:18000/api/health"
+``` powershell
+Invoke-RestMethod "http://127.0.0.1:18000/api/health"
 Invoke-RestMethod "http://127.0.0.1:18000/api/categories"
-Invoke-RestMethod "http://127.0.0.1:18000/api/products" }
+Invoke-RestMethod "http://127.0.0.1:18000/api/products"
+```
 
 Expected health response:
 
-JSON : { { "status": "healthy", "service": "nova-api" } }
+``` json
+{
+  "status": "healthy",
+  "service": "nova-api"
+}
+```
 
 ### Grafana
 
-PS : { kubectl port-forward -n observability svc/grafana 13000:80 }
+``` powershell
+kubectl port-forward -n observability svc/grafana 13000:80
+```
 
 Open http://127.0.0.1:13000. The administrator username is `admin`.
 
 Retrieve the provisioned password without committing it to Git:
 
-PS : { \$Password = kubectl get secret grafana-admin \` -n observability
--o jsonpath="{.data.admin-password}"
+``` powershell
+$Password = kubectl get secret grafana-admin `
+    -n observability -o jsonpath="{.data.admin-password}"
 
-if (\$LASTEXITCODE -ne 0 -or -not \$Password) { throw "Unable to
-retrieve the Grafana admin password." }
+if ($LASTEXITCODE -ne 0 -or -not $Password) {
+    throw "Unable to retrieve the Grafana admin password."
+}
 
+[System.Text.Encoding]::UTF8.GetString(
     [Convert]::FromBase64String($Password)
-
-) }
+)
+```
 
 Treat the password as a secret. Do not include it in logs,
 documentation, screenshots, or commits.
 
 ### Prometheus
 
-PS : { kubectl port-forward -n observability svc/prometheus-server
-19090:80 }
+``` powershell
+kubectl port-forward -n observability svc/prometheus-server 19090:80
+```
 
 Open http://127.0.0.1:19090.
 
 Useful PromQL queries:
 
-PromQL : { up }
+``` promql
+up
+```
 
-PromQL : { nova_http_requests_total }
+``` promql
+nova_http_requests_total
+```
 
 ### Loki
 
-PS : { kubectl port-forward -n observability svc/loki 13100:3100 }
+``` powershell
+kubectl port-forward -n observability svc/loki 13100:3100
+```
 
 The local endpoint is http://127.0.0.1:13100. The usual workflow is to
 query Loki through Grafana Explore.
 
 ### Tempo
 
-PS : { kubectl port-forward -n observability svc/tempo 13200:3200 }
+``` powershell
+kubectl port-forward -n observability svc/tempo 13200:3200
+```
 
 The local endpoint is http://127.0.0.1:13200. Use Grafana Explore to
 search for traces from service `nova-api`.
@@ -358,11 +404,14 @@ search for traces from service `nova-api`.
 
 Generate test traffic while the API port-forward is running:
 
-PS : { 1..10 \| ForEach-Object { Invoke-RestMethod
-"http://127.0.0.1:18000/api/health" }
+``` powershell
+1..10 | ForEach-Object {
+    Invoke-RestMethod "http://127.0.0.1:18000/api/health"
+}
 
-Invoke-RestMethod \`
-"http://127.0.0.1:18000/api/products?category=Audio" }
+Invoke-RestMethod `
+    "http://127.0.0.1:18000/api/products?category=Audio"
+```
 
 Then validate the telemetry:
 
@@ -426,32 +475,44 @@ ready, and run `docker info` again.
 
 ### The wrong cluster is selected
 
-PS : { kubectl config current-context kubectl config get-contexts k3d
-cluster list }
+``` powershell
+kubectl config current-context
+kubectl config get-contexts
+k3d cluster list
+```
 
 Confirm that the active context matches the cluster passed to the
 bootstrap script.
 
 ### The API cannot find its image
 
-PS : { kubectl get pods -n sample-api kubectl describe deployment
-nova-store -n sample-api }
+``` powershell
+kubectl get pods -n sample-api
+kubectl describe deployment nova-store -n sample-api
+```
 
 Verify that `nova-store:dev` was built and imported into the same k3d
 cluster selected by kubectl.
 
 ### An Argo CD Application is not healthy
 
-PS : { kubectl get applications.argoproj.io -n argocd kubectl get pods
--A kubectl get events -A --sort-by=.metadata.creationTimestamp }
+``` powershell
+kubectl get applications.argoproj.io -n argocd
+kubectl get pods -A
+kubectl get events -A --sort-by=.metadata.creationTimestamp
+```
 
 Inspect Application status, pod events, failed probes, image errors,
 storage provisioning, and Helm reconciliation errors.
 
 ### Port-forwarding fails
 
-PS : { kubectl get svc -n sample-api kubectl get endpoints -n sample-api
-kubectl get pods -n sample-api kubectl get svc -n observability }
+``` powershell
+kubectl get svc -n sample-api
+kubectl get endpoints -n sample-api
+kubectl get pods -n sample-api
+kubectl get svc -n observability
+```
 
 Check that the Service exists, its endpoints are available, the target
 pod is ready, and the local port is not already occupied. Stop a
@@ -474,12 +535,17 @@ cluster-local data.
 
 List clusters and verify the exact target before deleting anything:
 
-PS : { k3d cluster list kubectl config get-contexts }
+``` powershell
+k3d cluster list
+kubectl config get-contexts
+```
 
 If you created a disposable test cluster named `devops-assessment-fresh`
 and no longer need it:
 
-PS : { k3d cluster delete devops-assessment-fresh }
+``` powershell
+k3d cluster delete devops-assessment-fresh
+```
 
 Do not run the delete command against `devops-assessment` unless you
 explicitly intend to remove that cluster.
