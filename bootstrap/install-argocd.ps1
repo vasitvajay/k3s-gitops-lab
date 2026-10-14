@@ -1,4 +1,4 @@
-
+﻿
 # Install Argo CD using a pinned release.
 # Run from Windows PowerShell with kubectl configured.
 
@@ -17,8 +17,12 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "Ensuring namespace '$Namespace' exists..."
 
-kubectl get namespace $Namespace *> $null
+$NamespaceExists = kubectl get namespace $Namespace --ignore-not-found -o name 2>$null
 if ($LASTEXITCODE -ne 0) {
+    throw "Failed to check whether namespace '$Namespace' exists."
+}
+
+if (-not $NamespaceExists) {
     kubectl create namespace $Namespace
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to create namespace '$Namespace'."
