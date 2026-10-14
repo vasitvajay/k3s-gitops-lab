@@ -212,4 +212,3 @@ if (-not $RootAppReady) {
 Invoke-Kubectl @("get", "application", "root-app", "-n", "argocd")
 
 Write-Host "`nBootstrap completed: root Application submitted to Argo CD." -ForegroundColor Green
-```
