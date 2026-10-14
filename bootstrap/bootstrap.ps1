@@ -142,7 +142,14 @@ if ($LASTEXITCODE -ne 0) {
 
 if (-not $GrafanaSecretExists) {
     $RandomBytes = New-Object byte[] 32
-    [System.Security.Cryptography.RandomNumberGenerator]::Fill($RandomBytes)
+$Rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+
+try {
+    $Rng.GetBytes($RandomBytes)
+}
+finally {
+    $Rng.Dispose()
+}
 
     $GrafanaPassword = [Convert]::ToBase64String($RandomBytes).
         TrimEnd('=').
