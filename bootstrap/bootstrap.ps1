@@ -126,10 +126,6 @@ $NamespaceYaml | kubectl apply -f -
 
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to create or verify observability namespace."
-}$ObservabilityNamespace = kubectl get namespace observability -o name 2>$null
-
-if ($LASTEXITCODE -ne 0 -or -not $ObservabilityNamespace) {
-    Invoke-Kubectl @("create", "namespace", "observability")
 }
 
 # Preserve existing credentials across bootstrap reruns.
