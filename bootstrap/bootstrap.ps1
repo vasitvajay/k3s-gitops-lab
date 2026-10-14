@@ -1,4 +1,3 @@
-```powershell
 # Bootstrap the local k3s cluster and install Argo CD.
 # Prerequisites: Docker Desktop, k3d, kubectl.
 # Safe to rerun: an existing cluster and Grafana credentials are reused.
@@ -117,7 +116,17 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "`n=== Preparing Grafana admin credentials ===" -ForegroundColor Cyan
 
 # Create the namespace if it does not already exist.
-$ObservabilityNamespace = kubectl get namespace observability -o name 2>$null
+$NamespaceYaml = kubectl create namespace observability --dry-run=client -o yaml
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to generate observability namespace manifest."
+}
+
+$NamespaceYaml | kubectl apply -f -
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to create or verify observability namespace."
+}$ObservabilityNamespace = kubectl get namespace observability -o name 2>$null
 
 if ($LASTEXITCODE -ne 0 -or -not $ObservabilityNamespace) {
     Invoke-Kubectl @("create", "namespace", "observability")
