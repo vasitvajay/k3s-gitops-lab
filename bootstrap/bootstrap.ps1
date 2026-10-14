@@ -79,6 +79,29 @@ Write-Host "`n=== Waiting for Kubernetes node ===" -ForegroundColor Cyan
 Invoke-Kubectl @("wait", "--for=condition=Ready", "nodes", "--all", "--timeout=180s")
 Invoke-Kubectl @("get", "nodes", "-o", "wide")
 
+Write-Host "`n=== Building NOVA Store image ===" -ForegroundColor Cyan
+
+$RepoRoot = Split-Path $PSScriptRoot -Parent
+$DockerfileContext = Join-Path $RepoRoot "apps\sample-api"
+
+if (-not (Test-Path (Join-Path $DockerfileContext "Dockerfile"))) {
+    throw "NOVA Store Dockerfile not found: $DockerfileContext"
+}
+
+docker build -t nova-store:dev $DockerfileContext
+
+if ($LASTEXITCODE -ne 0) {
+    throw "NOVA Store Docker image build failed."
+}
+
+Write-Host "`n=== Importing NOVA Store image into k3d ===" -ForegroundColor Cyan
+
+k3d image import nova-store:dev --cluster $ClusterName
+
+if ($LASTEXITCODE -ne 0) {
+    throw "NOVA Store image import failed."
+}
+
 Write-Host "`n=== Installing Argo CD ===" -ForegroundColor Cyan
 
 if (-not (Test-Path $ArgoCDScript)) {
