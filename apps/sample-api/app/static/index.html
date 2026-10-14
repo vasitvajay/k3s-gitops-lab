@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111019">
+  <meta name="description" content="NOVA — thoughtful essentials for everyday life.">
+  <title>NOVA — Objects for Everyday</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="announcement">A little something for your everyday <span>✳</span> Free shipping on orders over ₹2,000</div>
+  <header class="nav wrap">
+    <a class="brand" href="/" aria-label="NOVA home"><span class="brand-mark">✳</span> NOVA</a>
+    <nav><a href="#shop">Shop</a><a href="#story">Our philosophy</a></nav>
+    <button class="cart-button" id="cartButton" aria-label="View bag">Bag <span id="cartCount">0</span> <span class="bag-icon">↗</span></button>
+  </header>
+
+  <main>
+    <section class="hero wrap" id="story">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="eyebrow-line"></span> THE EVERYDAY EDIT · VOL. 01</div>
+        <h1>Less noise.<br><em>More signal.</em></h1>
+        <p>Thoughtful essentials for the way you live, work, and unwind. Good design, no extra fuss.</p>
+        <a class="primary-button" href="#shop">Explore the collection <span>↗</span></a>
+        <div class="hero-note"><span class="sparkle">✳</span><span>Objects with purpose.<br><b>Made for real life.</b></span></div>
+      </div>
+      <div class="hero-art">
+        <div class="hero-orb orb-one"></div><div class="hero-orb orb-two"></div>
+        <div class="hero-label label-top">N° 001 — THE EDIT</div>
+        <div class="hero-product">
+          <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=1000&q=85" alt="Minimal premium headphones" onerror="this.style.display='none'">
+          <div class="hero-product-caption"><span>THE SOUND SERIES</span><b>Find your frequency.</b></div>
+        </div>
+        <div class="hero-stamp">DESIGNED<br>TO BE USED<br><span>↗</span></div>
+        <div class="hero-label label-bottom">FORM FOLLOWS FEELING.</div>
+      </div>
+    </section>
+
+    <section class="trust-strip wrap">
+      <div><span>✳</span> Considered design</div><div><span>↗</span> Everyday quality</div><div><span>○</span> Less, but better</div>
+    </section>
+
+    <section class="shop-section wrap" id="shop">
+      <div class="section-heading">
+        <div><div class="eyebrow">THE NOVA COLLECTION</div><h2>Good things, <em>well chosen.</em></h2></div>
+        <p>Useful by nature.<br>Beautiful by design.</p>
+      </div>
+      <div class="filters" id="filters"><button class="filter active" data-category="all">Everything</button></div>
+      <div class="product-grid" id="productGrid" aria-live="polite">
+        <div class="loading-card">Setting the scene…</div>
+      </div>
+    </section>
+
+    <section class="bottom-banner wrap">
+      <div class="banner-icon">✳</div>
+      <div><div class="eyebrow">A SMALLER KIND OF BETTER</div><h2>Keep what matters.</h2><p>Everyday objects, thoughtfully picked.</p></div>
+      <a href="#shop" class="banner-link">Find your everyday essential ↗</a>
+    </section>
+  </main>
+
+  <footer class="footer wrap"><a class="brand" href="/"><span class="brand-mark">✳</span> NOVA</a><span>Objects for everyday.</span><span>Built with care · Served by FastAPI</span></footer>
+
+  <dialog id="productDialog" class="product-dialog">
+    <button class="dialog-close" id="dialogClose" aria-label="Close product details">×</button>
+    <div id="productDetail"></div>
+  </dialog>
+  <dialog id="cartDialog" class="cart-dialog">
+    <button class="dialog-close" id="cartClose" aria-label="Close bag">×</button>
+    <div class="eyebrow">YOUR NOVA BAG</div><h2>Good choice.</h2>
+    <div id="cartContent"><p>Your bag is waiting for something good.</p></div>
+    <button id="checkoutButton" class="primary-button full-width" disabled>Place demo order <span>↗</span></button>
+    <p class="fine-print">Demo checkout — no payment is collected.</p>
+  </dialog>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
