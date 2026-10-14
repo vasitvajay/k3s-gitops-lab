@@ -11,6 +11,10 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
@@ -21,6 +25,17 @@ STATIC_DIR = APP_DIR / "static"
 # JSON logs are easy to parse centrally in Loki.
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(message)s")
 logger = logging.getLogger("nova")
+resource = Resource.create({
+    "service.name": "nova-api",
+    "deployment.environment": os.getenv("DEPLOYMENT_ENVIRONMENT", "local"),
+})
+
+tracer_provider = TracerProvider(resource=resource)
+tracer_provider.add_span_processor(
+    BatchSpanProcessor(OTLPSpanExporter())
+)
+trace.set_tracer_provider(tracer_provider)
+
 tracer = trace.get_tracer("nova.store")
 
 REQUESTS = Counter(
