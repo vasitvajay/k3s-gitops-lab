@@ -1,0 +1,26 @@
+server:
+  global:
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    evaluation_interval: 30s
+
+  persistentVolume:
+    enabled: true
+    size: 2Gi
+
+  retention: "24h"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+extraScrapeConfigs: |
+  - job_name: nova-store
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - nova-store.sample-api.svc.cluster.local:80
