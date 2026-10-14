@@ -29,6 +29,10 @@ spec:
           env:
             - name: LOG_LEVEL
               value: INFO
+            - name: DEPLOYMENT_ENVIRONMENT
+              value: local
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://alloy.observability.svc.cluster.local:4318
           resources:
             requests:
               cpu: 100m

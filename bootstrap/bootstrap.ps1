@@ -1,7 +1,7 @@
-
+```powershell
 # Bootstrap the local k3s cluster and install Argo CD.
 # Prerequisites: Docker Desktop, k3d, kubectl.
-# Safe to rerun: an existing cluster is reused.
+# Safe to rerun: an existing cluster and Grafana credentials are reused.
 
 $ErrorActionPreference = "Stop"
 
@@ -79,10 +79,10 @@ Write-Host "`n=== Waiting for Kubernetes node ===" -ForegroundColor Cyan
 Invoke-Kubectl @("wait", "--for=condition=Ready", "nodes", "--all", "--timeout=180s")
 Invoke-Kubectl @("get", "nodes", "-o", "wide")
 
-Write-Host "`n=== Building NOVA Store image ===" -ForegroundColor Cyan
-
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 $DockerfileContext = Join-Path $RepoRoot "apps\sample-api"
+
+Write-Host "`n=== Building NOVA Store image ===" -ForegroundColor Cyan
 
 if (-not (Test-Path (Join-Path $DockerfileContext "Dockerfile"))) {
     throw "NOVA Store Dockerfile not found: $DockerfileContext"
@@ -109,8 +109,95 @@ if (-not (Test-Path $ArgoCDScript)) {
 }
 
 & $ArgoCDScript
+
 if ($LASTEXITCODE -ne 0) {
     throw "Argo CD bootstrap failed."
 }
 
-Write-Host "`nBootstrap completed successfully." -ForegroundColor Green
+Write-Host "`n=== Preparing Grafana admin credentials ===" -ForegroundColor Cyan
+
+# Create the namespace if it does not already exist.
+$ObservabilityNamespace = kubectl get namespace observability -o name 2>$null
+
+if ($LASTEXITCODE -ne 0 -or -not $ObservabilityNamespace) {
+    Invoke-Kubectl @("create", "namespace", "observability")
+}
+
+# Preserve existing credentials across bootstrap reruns.
+$GrafanaSecretExists = kubectl get secret grafana-admin `
+    -n observability --ignore-not-found -o name 2>$null
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to check for the Grafana admin Secret."
+}
+
+if (-not $GrafanaSecretExists) {
+    $RandomBytes = New-Object byte[] 32
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($RandomBytes)
+
+    $GrafanaPassword = [Convert]::ToBase64String($RandomBytes).
+        TrimEnd('=').
+        Replace('+', 'A').
+        Replace('/', 'B')
+
+    $GrafanaSecretFile = Join-Path $env:TEMP "grafana-admin-secret.yaml"
+
+    $GrafanaSecretYaml = @"
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-admin
+  namespace: observability
+type: Opaque
+stringData:
+  admin-user: admin
+  admin-password: "$GrafanaPassword"
+"@
+
+    try {
+        Set-Content -Path $GrafanaSecretFile -Value $GrafanaSecretYaml -Encoding utf8
+        Invoke-Kubectl @("apply", "-f", $GrafanaSecretFile)
+    }
+    finally {
+        Remove-Item $GrafanaSecretFile -Force -ErrorAction SilentlyContinue
+    }
+
+    Write-Host "Created Grafana admin Secret. Password is not written to Git." -ForegroundColor Green
+}
+else {
+    Write-Host "Grafana admin Secret already exists; preserving credentials." -ForegroundColor Yellow
+}
+
+Write-Host "`n=== Applying Argo CD root Application ===" -ForegroundColor Cyan
+
+$RootApplication = Join-Path $RepoRoot "gitops\root-app.yaml"
+
+if (-not (Test-Path $RootApplication)) {
+    throw "Root Application manifest not found: $RootApplication"
+}
+
+Invoke-Kubectl @("apply", "-f", $RootApplication)
+
+Write-Host "`n=== Waiting for root Application registration ===" -ForegroundColor Cyan
+
+$RootAppReady = $false
+
+for ($Attempt = 1; $Attempt -le 60; $Attempt++) {
+    $RootApp = kubectl get application root-app -n argocd -o name 2>$null
+
+    if ($LASTEXITCODE -eq 0 -and $RootApp) {
+        $RootAppReady = $true
+        break
+    }
+
+    Start-Sleep -Seconds 2
+}
+
+if (-not $RootAppReady) {
+    throw "Argo CD root Application was not registered within 120 seconds."
+}
+
+Invoke-Kubectl @("get", "application", "root-app", "-n", "argocd")
+
+Write-Host "`nBootstrap completed: root Application submitted to Argo CD." -ForegroundColor Green
+```
